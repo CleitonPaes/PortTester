@@ -36,6 +36,9 @@
             this.Status = new System.Windows.Forms.Label();
             this.TCPServer = new System.ComponentModel.BackgroundWorker();
             this.UDPServer = new System.ComponentModel.BackgroundWorker();
+            this.Listen = new System.Windows.Forms.Button();
+            this.TCPListener = new System.ComponentModel.BackgroundWorker();
+            this.UDPListener = new System.ComponentModel.BackgroundWorker();
             this.SuspendLayout();
             // 
             // LabelPort
@@ -63,6 +66,8 @@
             this.Port.Size = new System.Drawing.Size(100, 20);
             this.Port.TabIndex = 2;
             this.Port.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.Port.TextChanged += new System.EventHandler(this.Port_TextChanged);
+            this.Port.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.Port_KeyPress);
             // 
             // Protocol
             // 
@@ -78,7 +83,7 @@
             // 
             // Test
             // 
-            this.Test.Location = new System.Drawing.Point(116, 128);
+            this.Test.Location = new System.Drawing.Point(72, 128);
             this.Test.Name = "Test";
             this.Test.Size = new System.Drawing.Size(75, 23);
             this.Test.TabIndex = 4;
@@ -107,11 +112,34 @@
             this.UDPServer.DoWork += new System.ComponentModel.DoWorkEventHandler(this.UDPServer_DoWork);
             this.UDPServer.RunWorkerCompleted += new System.ComponentModel.RunWorkerCompletedEventHandler(this.UDPServer_RunWorkerCompleted);
             // 
+            // Listen
+            // 
+            this.Listen.Location = new System.Drawing.Point(173, 128);
+            this.Listen.Name = "Listen";
+            this.Listen.Size = new System.Drawing.Size(75, 23);
+            this.Listen.TabIndex = 6;
+            this.Listen.Text = "Listen";
+            this.Listen.UseVisualStyleBackColor = true;
+            this.Listen.Click += new System.EventHandler(this.Listen_Click);
+            // 
+            // TCPListener
+            // 
+            this.TCPListener.WorkerSupportsCancellation = true;
+            this.TCPListener.DoWork += new System.ComponentModel.DoWorkEventHandler(this.TCPListener_DoWork);
+            this.TCPListener.RunWorkerCompleted += new System.ComponentModel.RunWorkerCompletedEventHandler(this.TCPListener_RunWorkerCompleted);
+            // 
+            // UDPListener
+            // 
+            this.UDPListener.WorkerSupportsCancellation = true;
+            this.UDPListener.DoWork += new System.ComponentModel.DoWorkEventHandler(this.UDPListener_DoWork);
+            this.UDPListener.RunWorkerCompleted += new System.ComponentModel.RunWorkerCompletedEventHandler(this.UDPListener_RunWorkerCompleted);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(310, 178);
+            this.Controls.Add(this.Listen);
             this.Controls.Add(this.Status);
             this.Controls.Add(this.Test);
             this.Controls.Add(this.Protocol);
@@ -137,6 +165,9 @@
         private System.Windows.Forms.Label Status;
         private System.ComponentModel.BackgroundWorker TCPServer;
         private System.ComponentModel.BackgroundWorker UDPServer;
+        private System.Windows.Forms.Button Listen;
+        private System.ComponentModel.BackgroundWorker TCPListener;
+        private System.ComponentModel.BackgroundWorker UDPListener;
     }
 }
 

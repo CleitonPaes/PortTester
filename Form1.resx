@@ -121,6 +121,12 @@
     <value>17, 17</value>
   </metadata>
   <metadata name="UDPServer.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
-    <value>181, 17</value>
+    <value>129, 16</value>
+  </metadata>
+  <metadata name="TCPListener.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+    <value>239, 16</value>
+  </metadata>
+  <metadata name="UDPListener.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+    <value>354, 16</value>
   </metadata>
 </root>

@@ -4,55 +4,92 @@ using System.Net.Sockets;
 using System.Net;
 using System.Threading;
 using System.Windows.Forms;
-using System.Diagnostics;
-using System.Text;
+using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace PortTester
 {
     public partial class Form1 : Form
     {
-        private bool Loading = false;
-        private int PortNumber = 0;
         private string MYIP = "";
-        private bool UDPResult = false;
-
+        private string LocalIP = "";
+        private int PortNumber = 0;
+        private bool TestResult = false;
+        
         public Form1()
         {
             InitializeComponent();
+            GetLocalIP();
             Protocol.Text = "TCP";
+        }
+
+        private void GetLocalIP()
+        {
+            try
+            {
+                UdpClient u = new("8.8.8.8", 1);
+                IPAddress localAddr = (u.Client.LocalEndPoint as IPEndPoint).Address;
+                LocalIP = localAddr.ToString();
+            }
+            catch
+            {
+            }
+        }
+
+        private void Lock()
+        {
+            foreach (Control c in Controls)
+            {
+                c.Enabled = false;
+            }
+        }
+
+        private void Unlock()
+        {
+            foreach (Control c in Controls)
+            {
+                c.Enabled = true;
+            }
         }
 
         private void Test_Click(object sender, EventArgs e)
         {
-            if (Loading == false && Port.TextLength >= 1 && Convert.ToInt32(Port.Text) >= 1 && Convert.ToInt32(Port.Text) <= 65535)
+            if (Port.TextLength >= 1 && Convert.ToInt32(Port.Text) >= 1 && Convert.ToInt32(Port.Text) <= 65535)
             {
-                Loading = true;
+                TestResult = false;
                 PortNumber = Convert.ToInt32(Port.Text);
-                Test.Enabled = false;
                 Status.Text = " Wait";
+                Lock();
 
                 Application.DoEvents();
 
-                if (MYIP == "")
+                if(MYIP == "")
                 {
                     try
                     {
                         WebRequest request = WebRequest.Create("https://api.ipify.org");
+                        request.Timeout = 1000;
                         using WebResponse response = request.GetResponse();
                         using StreamReader stream = new(response.GetResponseStream());
                         {
                             MYIP = stream.ReadToEnd();
                         }
                     }
-                    catch
+                    catch { }
+
+                    if (MYIP == "")
                     {
-                        Thread.Sleep(1000);
-                        Test.Enabled = true;
-
-                        Status.Text = "Verify the connection";
-
-                        Loading = false;
-                        return;
+                        try
+                        {
+                            WebRequest request = WebRequest.Create("https://ip4.seeip.org");
+                            request.Timeout = 1000;
+                            using WebResponse response = request.GetResponse();
+                            using StreamReader stream = new(response.GetResponseStream());
+                            {
+                                MYIP = stream.ReadToEnd();
+                            }
+                        }
+                        catch { }
                     }
                 }
 
@@ -64,27 +101,18 @@ namespace PortTester
 
                     using TcpClient tcpClient = new();
                     {
-                        IAsyncResult result = tcpClient.BeginConnect(MYIP, PortNumber, null, null);
-                        WaitHandle timeoutHandler = result.AsyncWaitHandle;
                         try
                         {
+                            IAsyncResult result = tcpClient.BeginConnect(MYIP, PortNumber, null, null);
                             if (!result.AsyncWaitHandle.WaitOne(1000, false))
                             {
                                 tcpClient.Close();
-                                Status.Text = "Closed";
                             }
-
                             tcpClient.EndConnect(result);
-                            Status.Text = " Open";
                         }
                         catch (Exception)
                         {
                             tcpClient.Close();
-                            Status.Text = "Closed";
-                        }
-                        finally
-                        {
-                            timeoutHandler.Close();
                         }
                     }
                 }
@@ -97,9 +125,6 @@ namespace PortTester
 
                     using UdpClient udpClient = new();
                     {
-
-                        UDPResult = false;
-
                         try
                         {
                             udpClient.Client.ReceiveTimeout = 1000;
@@ -107,16 +132,7 @@ namespace PortTester
                             udpClient.Connect(MYIP, PortNumber);
 
                             byte[] sendBytes = new byte[1];
-                            new Random().NextBytes(sendBytes);
                             udpClient.Send(sendBytes, sendBytes.Length);
-
-                            IPEndPoint remoteIpEndPoint = new(IPAddress.Any, 0);
-                            byte[] result = udpClient.Receive(ref remoteIpEndPoint);
-
-                            if (result != null)
-                            {
-                                UDPResult = true;
-                            }
                             udpClient.Close();
                         }
                         catch (Exception)
@@ -129,76 +145,166 @@ namespace PortTester
 
         private void TCPServer_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
         {
-            IPAddress ipAddress = IPAddress.Any;
-            Socket listenSocket = new(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            IPEndPoint localEndPoint = new(ipAddress, PortNumber);
-
-            listenSocket.Bind(localEndPoint);
-            listenSocket.Listen(1);
-            SocketAsyncEventArgs ex = new();
-            ex.Completed += AcceptCallback;
-            if (!listenSocket.AcceptAsync(ex))
+            try
             {
-                AcceptCallback(listenSocket, ex);
-            }
-
-            static void AcceptCallback(object sender, SocketAsyncEventArgs e)
-            {
-                Socket listenSocket = (Socket)sender;
-                do
+                TcpListener listener = new(IPAddress.Parse(LocalIP), PortNumber);
+                listener.Start();
+                if (listener.AcceptTcpClientAsync().Wait(2000))
                 {
-                    try
-                    {
-                        Socket newSocket = e.AcceptSocket;
-                        Debug.Assert(newSocket != null);
-                        newSocket.Send(Encoding.ASCII.GetBytes("Hello socket!"));
-                        newSocket.Disconnect(false);
-                        newSocket.Close();
-                    }
-                    catch
-                    {
-                    }
-                    finally
-                    {
-                        e.AcceptSocket = null;
-                    }
-                } while (!listenSocket.AcceptAsync(e));
+                    TestResult = true;
+                }
+                listener.Stop();
+            }
+            catch (Exception)
+            {
             }
         }
 
         private void UDPServer_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
         {
-            UdpClient udpServer = new(PortNumber);
-
-            udpServer.Client.ReceiveTimeout = 2000;
-
-            while (true)
+            try
             {
-                var remoteEP = new IPEndPoint(IPAddress.Any, PortNumber);
-                _ = udpServer.Receive(ref remoteEP);
-                udpServer.Send(new byte[] { 1 }, 1, remoteEP);
-                udpServer.Close();
+                UdpClient listener = new(PortNumber);
+
+                if (listener.ReceiveAsync().Wait(2000))
+                {
+                    TestResult = true;
+                }
+                listener.Close();
+            }
+            catch (Exception)
+            {
             }
         }
 
         private void TCPServer_RunWorkerCompleted(object sender, System.ComponentModel.RunWorkerCompletedEventArgs e)
         {
-            Loading = false;
-            Test.Enabled = true;
-        }
-
-        private void UDPServer_RunWorkerCompleted(object sender, System.ComponentModel.RunWorkerCompletedEventArgs e)
-        {
-            Loading = false;
-            Test.Enabled = true;
-
-            if (UDPResult == true)
+            Unlock();
+            if (TestResult == true)
             {
                 Status.Text = " Open";
             }
             else
             {
                 Status.Text = "Closed";
+            }
+        }
+
+        private void UDPServer_RunWorkerCompleted(object sender, System.ComponentModel.RunWorkerCompletedEventArgs e)
+        {
+            Unlock();
+            if (TestResult == true)
+            {
+                Status.Text = " Open";
+            }
+            else
+            {
+                Status.Text = "Closed";
+            }
+        }
+
+        private void Listen_Click(object sender, EventArgs e)
+        {
+            if (Port.TextLength >= 1 && Convert.ToInt32(Port.Text) >= 1 && Convert.ToInt32(Port.Text) <= 65535)
+            {
+                TestResult = false;
+                PortNumber = Convert.ToInt32(Port.Text);
+                Status.Text = " Listening";
+                Lock();
+                Application.DoEvents();
+
+                if (Protocol.Text == "TCP")
+                {
+                    TCPListener.RunWorkerAsync();
+                }
+                if (Protocol.Text == "TCP")
+                {
+                    UDPListener.RunWorkerAsync();
+                }
+            }
+        }
+
+        private void TCPListener_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
+        {
+            try
+            {
+                TcpListener listener = new(IPAddress.Parse(LocalIP), PortNumber);
+                listener.Start();
+                if (listener.AcceptTcpClientAsync().Wait(30000))
+                {
+                    TestResult = true;
+                }
+                listener.Stop();
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private void UDPListener_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
+        {
+            try
+            {
+                UdpClient listener = new(PortNumber);
+
+                if (listener.ReceiveAsync().Wait(30000))
+                {
+                    TestResult = true;
+                }
+                listener.Close();
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+
+        private void TCPListener_RunWorkerCompleted(object sender, System.ComponentModel.RunWorkerCompletedEventArgs e)
+        {
+            Unlock();
+            if (TestResult == true)
+            {
+                Status.Text = " Open";
+            }
+            else
+            {
+                Status.Text = "Closed";
+            }
+        }
+
+        private void UDPListener_RunWorkerCompleted(object sender, System.ComponentModel.RunWorkerCompletedEventArgs e)
+        {
+            Unlock();
+            if (TestResult == true)
+            {
+                Status.Text = " Open";
+            }
+            else
+            {
+                Status.Text = "Closed";
+            }
+        }
+
+        private void Port_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            Port.MaxLength = 5;
+            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
+            {
+                e.Handled = true;
+            }
+
+            if (((sender as TextBox).Text.IndexOf('.') > -1))
+            {
+                e.Handled = true;
+            }
+        }
+
+        private void Port_TextChanged(object sender, EventArgs e)
+        {
+            if (Regex.IsMatch(Port.Text, "[^0-9]"))
+            {
+                Port.Text = "";
+                Port.MaxLength = 5;
             }
         }
     }
